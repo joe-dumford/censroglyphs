@@ -8,9 +8,9 @@ const useTextTransformer = () => {
     });
     const [outputText, setOutputText] = useState("");
     const [bannedWordsList, setBannedWordsList] = useState(() => {
-        // Store banned words in lowercase for consistent comparison
         const savedWords = localStorage.getItem('bannedWords');
-        return savedWords ? JSON.parse(savedWords).map(word => word.toLowerCase()) : [];
+        // Store both the original word and its lowercase version
+        return savedWords ? JSON.parse(savedWords) : [];
     });
 
     useEffect(() => {
@@ -25,7 +25,6 @@ const useTextTransformer = () => {
         const mapping = charMapping.split(",").reduce((acc, pair) => {
             const [letter, replacement] = pair.trim().split(":");
             if (letter && replacement) {
-                // Add both lowercase and uppercase mappings
                 acc[letter.toLowerCase()] = replacement;
                 acc[letter.toUpperCase()] = replacement;
             }
@@ -33,33 +32,45 @@ const useTextTransformer = () => {
         }, {});
 
         const result = inputText
-            .split(" ")
-            .map((word) => {
-                // Compare lowercase versions for matching
-                if (bannedWordsList.includes(word.toLowerCase())) {
-                    // Preserve original case when transforming
-                    return word
+            .split(/\b/)  // Split on word boundaries to preserve spacing and punctuation
+            .map((segment) => {
+                const trimmedSegment = segment.trim();
+                if (!trimmedSegment) return segment; // Preserve whitespace and punctuation
+
+                // Find if the word matches any banned word (case-insensitive)
+                const matchingBannedWord = bannedWordsList.find(
+                    ({ lowercase }) => lowercase === trimmedSegment.toLowerCase()
+                );
+
+                if (matchingBannedWord) {
+                    return segment
                         .split("")
                         .map((char) => mapping[char] || char)
                         .join("");
                 }
-                return word;
+                return segment;
             })
-            .join(" ");
+            .join("");
 
         setOutputText(result);
     };
 
     const addBannedWord = (word) => {
-        const lowerWord = word.toLowerCase();
-        if (word && !bannedWordsList.includes(lowerWord)) {
-            setBannedWordsList([...bannedWordsList, lowerWord]);
+        const trimmedWord = word.trim();
+        if (trimmedWord) {
+            const newBannedWord = {
+                original: trimmedWord,
+                lowercase: trimmedWord.toLowerCase()
+            };
+
+            if (!bannedWordsList.some(existing => existing.lowercase === newBannedWord.lowercase)) {
+                setBannedWordsList([...bannedWordsList, newBannedWord]);
+            }
         }
     };
 
     const removeBannedWord = (word) => {
-        const lowerWord = word.toLowerCase();
-        setBannedWordsList(bannedWordsList.filter(w => w !== lowerWord));
+        setBannedWordsList(bannedWordsList.filter(w => w.lowercase !== word.toLowerCase()));
     };
 
     const clearAllData = () => {
@@ -96,9 +107,9 @@ const BannedWordsList = ({ words, onRemove }) => {
                             key={index}
                             className="flex justify-between items-center bg-gray-800/30 p-2 rounded-lg border border-gray-700"
                         >
-                            <span className="text-gray-200">{word}</span>
+                            <span className="text-gray-200">{word.original}</span>
                             <button
-                                onClick={() => onRemove(word)}
+                                onClick={() => onRemove(word.original)}
                                 className="text-red-400 hover:text-red-300"
                             >
                                 Remove
